@@ -39,25 +39,28 @@ module Dash
   end
 
   def create_html_and_register_index(file, doc_name)
-    title = ''
     html_body = file.read
     html_body.scan(/(<h[1-5]( [^>]+)?>(.*?)<\/h([1-5])>)/).each do |match|
       tag = match[0]
+      html_attr = match[1]
       name = ActionView::Base.full_sanitizer.sanitize(match[2])
+      next if html_attr =~ /feedback/
+
+      # Search Index
+      index_name = CGI.unescapeHTML(name).gsub("'"){ "''" }
       puts "Index: #{name}"
-      hash = Digest::MD5.hexdigest name
-
+      # Add Table of Contents
+      toc_ref = %{<a name="//apple_ref/ruby/Guide/#{URI.escape index_name}" class="dashAnchor"></a>}
       # Add Anchor to Header Tag
-      html_body.sub!(tag, %{<a name="#{hash}"></a>#{tag}})
+      hash = Digest::MD5.hexdigest name
+      index_ref = %{<a name="#{hash}"></a>}
+      html_body.sub!(tag, "#{toc_ref}#{index_ref}#{tag}")
 
-      # Add Search Index
-      title = index_name = CGI.unescapeHTML(name).gsub("'"){ "''" }
       sqlite %{INSERT OR IGNORE INTO searchIndex(name, type, path) VALUES ('#{index_name}', 'Guide', '#{doc_name}##{hash}');}
     end
     # relative
     html_body.gsub!('src="/images/', 'src="./images/')
     html_body.gsub!('href="/"', 'src="./index.html"')
-    html_body
     # Rremove Navigation and Header
     doc = Nokogiri::HTML.parse(html_body, nil, 'utf-8')
     doc.search("#topNav").remove
@@ -109,6 +112,8 @@ module Dash
     <string>railsguides</string>
     <key>isDashDocset</key>
     <true/>
+    <key>DashDocSetFamily</key>
+    <string>dashtoc</string>
   </dict>
 </plist>
     HTML
